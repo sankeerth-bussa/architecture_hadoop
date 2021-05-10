@@ -1,0 +1,151 @@
+- name: configuring hadoop cluster
+  hosts: all
+  gather_facts: no
+  tasks:
+          - name: stopping firewall
+            service:
+                    name: firewalld
+                    state: stopped
+
+          - name: Deactivate SELinux
+            command: "setenforce 0"
+            ignore_errors: true
+
+          - name: copying hadoop setup file
+            copy:
+                  src: hadoop-1.2.1-1.x86_64.rpm
+                  dest: /root/
+
+          - name: copying jkd setup file
+            copy:
+                  src: jdk-8u171-linux-x64.rpm
+                  dest: /root/
+
+          - name: checking jdk
+            shell: "rpm -q jdk1.8"
+            register: j
+            ignore_errors: true
+
+          - name: installing jdk
+            shell: "rpm -i jdk-8u171-linux-x64.rpm"
+            when: j.rc != 0
+
+          - name: checking hadoop
+            shell: "rpm -q hadoop"
+            register: h
+            ignore_errors: true
+
+          - name: installing hadoop
+            shell: "rpm -i hadoop-1.2.1-1.x86_64.rpm --force"
+            when: h.rc != 0
+
+- name: namenode configuration
+  hosts: hdfs_master
+  gather_facts: no
+  tasks:
+          - name: copyging hdfs-site.xml
+            copy:
+                  src: nhdfs-site.xml
+                  dest: /etc/hadoop/hdfs-site.xml
+
+          - name: copyging core-site.xml
+            template:
+                  src: core-site.xml
+                  dest: /etc/hadoop/core-site.xml
+
+          - name: creating /nn directory
+            file:
+                  path: /nn
+                  state: directory
+
+          - name: stopping firewall
+            service:
+                  name: firewalld
+                  state: stopped
+
+          - name: checking namenode status
+            command: "ls /nn/image"
+            register: nn
+            ignore_errors: true
+
+          - name: formatting namenode
+            shell: "echo Y | hadoop namenode -format"
+            when: nn.rc != 0
+            ignore_errors: true
+
+          - name: stopping namenode
+            shell: "hadoop-daemon.sh stop namenode"
+            ignore_errors: true
+
+          - name: starting namenode
+            shell: "hadoop-daemon.sh start namenode"
+            ignore_errors: true
+
+- name: datanode configuration
+  hosts: hdfs_slave
+  gather_facts: no
+  tasks:
+          - name: copyging hdfs-site.xml
+            copy:
+                  src: dhdfs-site.xml
+                  dest: /etc/hadoop/hdfs-site.xml
+
+          - name: copyging core-site.xml
+            template:
+                  src: core-site.xml
+                  dest: /etc/hadoop/core-site.xml
+
+          - name: creating /dn directory
+            file:
+                  path: /dn
+                  state: directory
+
+          - name: starting datanode
+            shell: "hadoop-daemon.sh start datanode"
+            ignore_errors: true
+
+- name: job tracker configuration
+  hosts: mr_master
+  gather_facts: no
+  tasks:
+          - name: copyging mapred-site.xml
+            template:
+                  src: mapred-site.xml
+                  dest: /etc/hadoop/mapred-site.xml
+
+          - name: copyging core-site.xml
+            template:
+                  src: core-site.xml
+                  dest: /etc/hadoop/core-site.xml
+
+
+          - name: starting job tracker
+            shell: "hadoop-daemon.sh start jobtracker"
+            ignore_errors: true
+
+- name: task tracker configuration
+  hosts: mr_slave
+  gather_facts: no
+  tasks:
+          - name: copyging mapred-site.xml
+            template:
+                  src: mapred-site.xml
+                  dest: /etc/hadoop/mapred-site.xml
+
+          - name: starting task tracker
+            shell: "hadoop-daemon.sh start tasktracker"
+            ignore_errors: true
+
+- name: client configuration
+  hosts: client
+  gather_facts: no
+  tasks:
+          - name: copyging core-site.xml
+            template:
+                  src: core-site.xml
+                  dest: /etc/hadoop/core-site.xml
+
+          - name: copying map-site.xml
+            template:
+                  src: mapred-site.xml
+                  dest: /etc/hadoop/mapred-site.xml
